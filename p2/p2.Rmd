@@ -1,0 +1,60 @@
+---
+title: "Using Technology: U.S. Economy Case Study dataset"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code.
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*.
+
+```{r}
+#install.packages("zip")
+#olsrr.install.packages("zip")
+# install.packages("corrplot")
+# install.packages("olsrr")
+library(dplyr)
+library(ggplot2)
+library(corrplot)
+library(olsrr)
+```
+
+```{r}
+df <- read.csv("mlr11.csv")
+head(df)
+```
+
+```{r}
+X_CRUDE = df$CRUDE
+x_INTEREST = df$INTEREST
+x_FOREIGN = df$FOREIGN
+y = df$DJIA
+x_GNP = df$GNP
+x_PURCHASE = df$PURCHASE
+x_CONSUMER = df$CONSUMER
+```
+
+```{r}
+corr_matrix = cbind(
+              X_CRUDE,
+              x_INTEREST,
+              x_FOREIGN,
+              x_GNP,
+              x_PURCHASE,
+              x_CONSUMER, y)
+corr_matrix = cor(corr_matrix, method = c("pearson"))
+corrplot(corr_matrix, method="color")
+```
+
+```{r}
+mod <- lm(y~X_CRUDE+x_INTEREST+x_FOREIGN+x_GNP+x_PURCHASE+x_CONSUMER)
+```
+
+```{r}
+summary(mod)
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
