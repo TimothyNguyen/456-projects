@@ -1,0 +1,302 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code.
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*.
+
+```{r}
+library(dplyr)
+library(tidyr)
+url <- 'titantic.txt'
+df <- read.table(url, header = TRUE, sep = '\t')
+glimpse(df)
+```
+
+```{r}
+df
+```
+
+1.  Check continuous variables
+
+Let's drop age where it's NA
+
+```{r}
+new_df<- df %>% drop_na()
+new_df <- subset(new_df, select = -c(Name))
+new_df$PClass <- as.factor(new_df$PClass)
+new_df$Sex <- as.factor(new_df$Sex)
+new_df$Survived <- as.factor(new_df$Survived)
+```
+
+```{r}
+head(new_df)
+```
+
+```{r}
+continuous <-select_if(new_df, is.numeric)
+summary(continuous)
+```
+
+Plot distribution of age
+
+```{r}
+library(ggplot2)
+ggplot(continuous, aes(x = Age)) +
+    geom_density(alpha = .2, fill = "#FF6666")
+```
+
+2.  Check factor variables
+
+    This step has two objectives:
+
+    -   Check the level in each categorical column
+
+    -   Define new levels
+
+    We will divide this step into three parts:
+
+    -   Select the categorical columns
+
+    -   Store the bar chart of each column in a list
+
+    -   Print the graphs
+
+```{r}
+factor <- data.frame(select_if(new_df, is.factor))
+ncol(factor)
+```
+
+```{r}
+library(ggplot2)
+# Create graph for each column
+graph <- lapply(names(factor),
+    function(x) 
+	ggplot(factor, aes(get(x))) +
+		geom_bar() +
+		theme(axis.text.x = element_text(angle = 90)))
+```
+
+```{r}
+graph
+```
+
+3.  Feature Engineering (No need as variables are defined well)
+4.  Summary statistic
+
+```{r}
+ggplot(new_df, aes(x = PClass, fill = Survived)) +
+    geom_bar(position = "fill") +
+    theme_classic()
+```
+
+```{r}
+ggplot(new_df, aes(x = Sex, fill = Survived)) +
+    geom_bar(position = "fill") +
+    theme_classic()
+```
+
+Sex to Age
+
+```{r}
+# box plot gender working time
+ggplot(new_df, aes(x = Sex, y = Age)) +
+    geom_boxplot() +
+    stat_summary(fun.y = mean,
+        geom = "point",
+        size = 3,
+        color = "steelblue") +
+    theme_classic()
+```
+
+```{r}
+# box plot gender working time
+ggplot(new_df, aes(x = Survived, y = Age)) +
+    geom_boxplot() +
+    stat_summary(fun.y = mean,
+        geom = "point",
+        size = 3,
+        color = "steelblue") +
+    theme_classic()
+```
+
+```{r}
+# box plot gender working time
+ggplot(new_df, aes(x = PClass, y = Age)) +
+    geom_boxplot() +
+    stat_summary(fun.y = mean,
+        geom = "point",
+        size = 3,
+        color = "steelblue") +
+    theme_classic()
+```
+
+Do an anova test
+
+```{r}
+anova <- aov(Age~Survived, new_df)
+summary(anova)
+```
+
+```{r}
+anova <- aov(Age~PClass, new_df)
+summary(anova)
+```
+
+```{r}
+anova <- aov(Age~PClass+Survived, new_df)
+summary(anova)
+```
+
+Check for non-linearity
+
+```{r}
+library(ggplot2)
+ggplot(new_df, aes(x = Age, y = PClass)) +
+    geom_point(aes(color = Survived),
+        size = 0.5) +
+    stat_smooth(method = 'lm',
+        formula = y~poly(x, 2),
+        se = TRUE,
+        aes(color = Survived)) +
+    theme_classic()
+```
+
+```{r}
+library(GGally)
+# Convert data to numeric
+corr <- data.frame(lapply(new_df, as.integer))
+# Plot the graph
+ggcorr(corr,
+    method = c("pairwise", "spearman"),
+    nbreaks = 6,
+    hjust = 0.8,
+    label = TRUE,
+    label_size = 3,
+    color = "grey50")
+```
+
+Step 5: Train/Test Set
+
+```{r}
+set.seed(1234)
+create_train_test <- function(data, size = 0.8, train = TRUE) {
+    n_row = nrow(data)
+    total_row = size * n_row
+    train_sample <- 1: total_row
+    if (train == TRUE) {
+        return (data[train_sample, ])
+    } else {
+        return (data[-train_sample, ])
+    }
+}
+data_train <- create_train_test(new_df, 0.8, train = TRUE)
+data_test <- create_train_test(new_df, 0.8, train = FALSE)
+dim(data_train)
+```
+
+```{r}
+dim(data_test)
+```
+
+Step 6: BUild the model - Generalized Linear Model
+
+```{r}
+formula <- Survived~.
+logit <- glm(formula, data = data_train, family = 'binomial')
+summary(logit)
+```
+
+```{r}
+logit$aic
+```
+
+```{r}
+logit
+```
+
+Step 7: Assess the performance of the model
+
+```{r}
+predict <- predict(logit, data_test, type = 'response')
+# confusion matrix
+table_mat <- table(data_test$Survived, predict > 0.5)
+table_mat
+```
+
+Accuracy of Binomial Model
+
+```{r}
+accuracy_Test <- sum(diag(table_mat)) / sum(table_mat)
+accuracy_Test
+```
+
+```{r}
+precision <- function(matrix) {
+	# True positive
+    tp <- matrix[2, 2]
+	# false positive
+    fp <- matrix[1, 2]
+    return (tp / (tp + fp))
+}
+recall <- function(matrix) {
+# true positive
+    tp <- matrix[2, 2]# false positive
+    fn <- matrix[2, 1]
+    return (tp / (tp + fn))
+}
+```
+
+```{r}
+prec <- precision(table_mat)
+prec
+rec <- recall(table_mat)
+rec
+```
+
+```{r}
+f1 <- 2 * ((prec * rec) / (prec + rec))
+f1
+```
+
+```{r}
+# install.packages("ROCR")
+library(ROCR)
+ROCRpred <- prediction(predict, data_test$Survived)
+ROCRperf <- performance(ROCRpred, 'tpr', 'fpr')
+plot(ROCRperf, colorize = TRUE, text.adj = c(-0.2, 1.7))
+```
+
+```{r}
+formula_2 <- Survived~Sex
+logit_2 <- glm(formula_2, data = data_train, family = 'binomial')
+predict_2 <- predict(logit_2, data_test, type = 'response')
+table_mat_2 <- table(data_test$Survived, predict_2 > 0.5)
+table_mat_2
+precision_2 <- precision(table_mat_2)
+precision_2
+recall_2 <- recall(table_mat_2)
+recall_2
+f1_2 <- 2 * ((precision_2 * recall_2) / (precision_2 + recall_2))
+f1_2
+accuracy_Test <- sum(diag(table_mat_2)) / sum(table_mat_2)
+accuracy_Test
+```
+
+```{r}
+formula_2 <- Survived~Age
+logit_2 <- glm(formula_2, data = data_train, family = 'binomial')
+predict_2 <- predict(logit_2, data_test, type = 'response')
+table_mat_2 <- table(data_test$Survived, predict_2 > 0.5)
+table_mat_2
+precision_2 <- precision(table_mat_2)
+precision_2
+recall_2 <- recall(table_mat_2)
+recall_2
+f1_2 <- 2 * ((precision_2 * recall_2) / (precision_2 + recall_2))
+f1_2
+accuracy_Test <- sum(diag(table_mat_2)) / sum(table_mat_2)
+accuracy_Test
+```
